@@ -91,14 +91,45 @@ db.run(SCHEMA)
 db.run('PRAGMA foreign_keys = ON;')
 
 let saveTimer = null
+
+function write() {
+  const data = db.export()
+  const tmp = dbFile + '.tmp'
+  fs.writeFileSync(tmp, Buffer.from(data))
+  fs.renameSync(tmp, dbFile)
+}
+
 export function persist() {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
-    const data = db.export()
-    fs.writeFileSync(dbFile, Buffer.from(data))
     saveTimer = null
+    write()
   }, 200)
 }
+
+function flush() {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+  write()
+}
+
+process.on('SIGINT', () => {
+  flush()
+  process.exit(0)
+})
+process.on('SIGTERM', () => {
+  flush()
+  process.exit(0)
+})
+process.on('exit', () => {
+  if (saveTimer) write()
+})
+
+setInterval(() => {
+  if (saveTimer) write()
+}, 5000).unref()
 
 export const now = () => new Date().toISOString().slice(0, 10)
 
