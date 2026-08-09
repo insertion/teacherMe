@@ -14,34 +14,46 @@ function toMin(t) {
 
 export default function Schedule({ onToast }) {
   const [students, setStudents] = useState([])
-  const [view, setView] = useState('week')
+  const [view, setView] = useState(() => window.innerWidth <= 768 ? 'day' : 'week')
   const [week, setWeek] = useState(null)
   const [month, setMonth] = useState(null)
+  const [dayData, setDayData] = useState(null)
   const [anchor, setAnchor] = useState(today())
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({})
   const [dayDetail, setDayDetail] = useState(null)
+  const [autoGen, setAutoGen] = useState(null)
+  const [autoResult, setAutoResult] = useState(null)
+  const [autoLoading, setAutoLoading] = useState(false)
 
   const load = useCallback(async () => {
-    const [sts, w, m] = await Promise.all([
+    const [sts, w, m, d] = await Promise.all([
       api.students.list(),
       api.schedule.week(anchor),
       api.schedule.month(anchor),
+      api.schedule.day(anchor),
     ])
     setStudents(sts)
     setWeek(w)
     setMonth(m)
+    setDayData(d)
   }, [anchor])
 
   useEffect(() => { load() }, [load])
 
   const shift = (delta) => {
     const d = new Date(anchor)
-    if (view === 'week') d.setDate(d.getDate() + delta * 7)
+    if (view === 'day') d.setDate(d.getDate() + delta)
+    else if (view === 'week') d.setDate(d.getDate() + delta * 7)
     else d.setMonth(d.getMonth() + delta)
     setAnchor(d.toISOString().slice(0, 10))
   }
   const goToday = () => setAnchor(today())
+  const fmtFullDate = (s) => {
+    if (!s) return ''
+    const d = new Date(s + 'T00:00:00')
+    return `${s} 周${WD[d.getDay()]}`
+  }
 
   const openNew = (date) => {
     setForm({
@@ -77,6 +89,54 @@ export default function Schedule({ onToast }) {
     load()
   }
 
+  const toggleConfirm = async (s) => {
+    await api.sessions.confirm(s.id, !s.confirmed)
+    load()
+  }
+
+  const openAutoGen = () => {
+    const todayDate = today()
+    const end = new Date()
+    end.setDate(end.getDate() + 30)
+    const endStr = end.toISOString().slice(0, 10)
+    setAutoResult(null)
+    setAutoGen({ from: todayDate, to: endStr, student_ids: [] })
+  }
+  const setAG = (k, v) => setAutoGen((f) => ({ ...f, [k]: v }))
+
+  const runAutoGen = async () => {
+    if (!autoGen.from || !autoGen.to) return onToast?.('请选择起止日期')
+    setAutoLoading(true)
+    try {
+      const result = await api.schedule.autoGenerate({
+        from: autoGen.from,
+        to: autoGen.to,
+        student_ids: autoGen.student_ids,
+      })
+      setAutoResult(result)
+    } catch (e) {
+      onToast?.('生成失败: ' + e.message)
+    } finally {
+      setAutoLoading(false)
+    }
+  }
+
+  const closeAutoGen = () => {
+    if (autoResult?.created > 0) {
+      onToast?.(`已生成 ${autoResult.created} 节课`)
+      load()
+    }
+    setAutoGen(null)
+    setAutoResult(null)
+  }
+
+  const autoStudents = students.filter((s) => (s.regular_slots || []).length > 0)
+  const toggleStudent = (id) => setAG('student_ids',
+    autoGen.student_ids.includes(id)
+      ? autoGen.student_ids.filter((x) => x !== id)
+      : [...autoGen.student_ids, id]
+  )
+
   const weekTotal = week?.days?.reduce((sum, d) => sum + d.sessions.length, 0) || 0
   const weekFee = week?.days?.reduce((sum, d) => sum + d.sessions.reduce((a, b) => a + (b.fee || 0), 0), 0) || 0
   const weekCommute = week?.days?.reduce((sum, d) => {
@@ -108,7 +168,7 @@ export default function Schedule({ onToast }) {
             {gap.type === 'overlap' ? `⚠ 与上节课时间冲突` : `⚠ 间隔${gap.gap}min,通勤需${gap.need}min`}
           </div>
         )}
-        <div className="lesson-card" onClick={() => openEdit(s)}>
+        <div className={`lesson-card ${s.confirmed ? '' : 'lesson-unconfirmed'}`} onClick={() => openEdit(s)}>
           <div className="lesson-time">{s.start_time}-{s.end_time}</div>
           <div className="lesson-name">{s.student_name}</div>
           <div className="lesson-subject">{s.student_subject || ''}</div>
@@ -116,6 +176,9 @@ export default function Schedule({ onToast }) {
           <div className="lesson-commute">🚶 {s.student_commute_min ? `单程${s.student_commute_min}min` : '未设置通勤'}</div>
           <div className="lesson-fee">¥{s.fee}</div>
           <div className="lesson-actions">
+            <button className={`btn-ghost btn-sm ${s.confirmed ? '' : 'btn-confirm'}`} onClick={(e) => { e.stopPropagation(); toggleConfirm(s) }}>
+              {s.confirmed ? '取消确认' : '✓ 确认'}
+            </button>
             <button className="btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); remove(s) }}>删除</button>
           </div>
         </div>
@@ -129,21 +192,61 @@ export default function Schedule({ onToast }) {
         <div className="page-title">课表</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div className="view-switch">
+            <button className={view === 'day' ? 'active' : ''} onClick={() => setView('day')}>日</button>
             <button className={view === 'week' ? 'active' : ''} onClick={() => setView('week')}>周</button>
             <button className={view === 'month' ? 'active' : ''} onClick={() => setView('month')}>月</button>
           </div>
-          <button className="btn-ghost btn-sm" onClick={() => shift(-1)}>{view === 'week' ? '‹ 上周' : '‹ 上月'}</button>
-          <button className="btn-ghost btn-sm" onClick={goToday}>本周</button>
-          <button className="btn-ghost btn-sm" onClick={() => shift(1)}>{view === 'week' ? '下周 ›' : '下月 ›'}</button>
+          <button className="btn btn-sm" onClick={openAutoGen}>⚡ 自动生成</button>
+          <button className="btn-ghost btn-sm" onClick={() => shift(-1)}>
+            {view === 'day' ? '‹ 前一天' : view === 'week' ? '‹ 上周' : '‹ 上月'}
+          </button>
+          <button className="btn-ghost btn-sm" onClick={goToday}>今天</button>
+          <button className="btn-ghost btn-sm" onClick={() => shift(1)}>
+            {view === 'day' ? '后一天 ›' : view === 'week' ? '下周 ›' : '下月 ›'}
+          </button>
           <span style={{ color: 'var(--text-light)', fontSize: 13, marginLeft: 4 }}>
-            {view === 'week'
-              ? (week ? `${fmtDate(week.weekStart)} - ${fmtDate(week.weekEnd)}` : '')
-              : (month ? month.monthLabel : '')}
+            {view === 'day'
+              ? (dayData ? fmtFullDate(dayData.date) : '')
+              : view === 'week'
+                ? (week ? `${fmtDate(week.weekStart)} - ${fmtDate(week.weekEnd)}` : '')
+                : (month ? month.monthLabel : '')}
           </span>
         </div>
       </div>
 
-      {view === 'week' ? (
+      {view === 'day' ? (
+        <>
+          <div className="stat-grid">
+            <div className="stat-card"><div className="label">当日课时</div><div className="value">{dayData?.sessions.length || 0}</div></div>
+            <div className="stat-card"><div className="label">当日收入</div><div className="value">¥{dayData?.sessions.reduce((a, b) => a + (b.fee || 0), 0) || 0}</div></div>
+            <div className="stat-card"><div className="label">当日通勤(分钟)</div><div className="value">{(() => {
+              if (!dayData) return 0
+              const ids = new Set(dayData.sessions.map((s) => s.student_id))
+              return [...ids].reduce((a, sid) => {
+                const st = students.find((x) => x.id === sid)
+                return a + (st?.commute_min || 0) * 2
+              }, 0)
+            })()}</div></div>
+          </div>
+
+          {!dayData ? <div className="card empty">加载中…</div> : (
+            <div className="day-view">
+              {dayData.sessions.length === 0 ? (
+                <div className="card empty day-view-empty" onClick={() => openNew(dayData.date)}>
+                  当天无课,点击排课
+                </div>
+              ) : (
+                <>
+                  <div className="day-view-list">
+                    {dayData.sessions.map((s, i) => renderLessonCard(s, i, dayData.sessions))}
+                  </div>
+                  <button className="btn day-view-add" onClick={() => openNew(dayData.date)}>+ 添加课程</button>
+                </>
+              )}
+            </div>
+          )}
+        </>
+      ) : view === 'week' ? (
         <>
           <div className="stat-grid">
             <div className="stat-card"><div className="label">本周课时</div><div className="value">{weekTotal}</div></div>
@@ -264,6 +367,62 @@ export default function Schedule({ onToast }) {
             </select>
           </Field>
           <Field label="课堂表现"><textarea value={form.performance || ''} onChange={(e) => setF('performance', e.target.value)} /></Field>
+        </Modal>
+      )}
+
+      {autoGen && (
+        <Modal title="⚡ 自动生成课表" onClose={closeAutoGen}>
+          <div className="row">
+            <Field label="开始日期"><input type="date" value={autoGen.from} onChange={(e) => setAG('from', e.target.value)} /></Field>
+            <Field label="结束日期"><input type="date" value={autoGen.to} onChange={(e) => setAG('to', e.target.value)} /></Field>
+          </div>
+          <Field label="选择学生(不选则全部)">
+            <div className="student-pick">
+              {autoStudents.length === 0 ? (
+                <span style={{ color: 'var(--text-light)', fontSize: 13 }}>暂无学生设置固定上课时间,请先到「学生档案」中设置</span>
+              ) : autoStudents.map((s) => (
+                <span
+                  key={s.id}
+                  className={`chip ${autoGen.student_ids.includes(s.id) ? 'active' : ''}`}
+                  onClick={() => toggleStudent(s.id)}
+                >
+                  {s.name}
+                </span>
+              ))}
+            </div>
+          </Field>
+
+          {autoResult && (
+            <div className="auto-result">
+              <div className="auto-summary">
+                {autoResult.created > 0
+                  ? `✅ 已生成 ${autoResult.created} 节课(均为待确认,确认后才计入收入)`
+                  : (autoResult.message || '未生成任何课时')}
+              </div>
+              {autoResult.sessions?.length > 0 && (
+                <div className="auto-list">
+                  {autoResult.sessions.map((s) => (
+                    <div key={s.id} className="auto-item">
+                      <span className="auto-date">{s.date} {s.weekday}</span>
+                      <span className="auto-time">{s.start_time}-{s.end_time}</span>
+                      <span className="auto-name">{s.student_name}</span>
+                      <span className="auto-fee">¥{s.fee}</span>
+                      <span className="badge badge-pending">待确认</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={closeAutoGen}>{autoResult ? '完成' : '取消'}</button>
+            {!autoResult && (
+              <button type="button" className="btn" onClick={runAutoGen} disabled={autoLoading}>
+                {autoLoading ? '生成中…' : '生成课表'}
+              </button>
+            )}
+          </div>
         </Modal>
       )}
     </div>

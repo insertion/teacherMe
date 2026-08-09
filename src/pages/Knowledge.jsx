@@ -103,13 +103,13 @@ export default function Knowledge({ onToast }) {
                     const si = statusInfo(k.status)
                     return (
                       <tr key={k.id}>
-                        <td>{k.point}</td>
-                        <td>
+                        <td data-label="知识点">{k.point}</td>
+                        <td data-label="状态">
                           <select value={k.status} onChange={(e) => setStatus(k, e.target.value)} style={{ width: 'auto', padding: '2px 6px' }}>
                             {STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
                           </select>
                         </td>
-                        <td>
+                        <td data-label="掌握度">
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <div className="kp-bar" style={{ flex: 1 }}>
                               <div style={{ width: `${k.mastery || 0}%`, background: k.status === 'mastered' ? 'var(--success)' : k.status === 'new' ? 'var(--danger)' : 'var(--warning)' }} />
@@ -119,8 +119,8 @@ export default function Knowledge({ onToast }) {
                             <button className="btn-ghost btn-sm" onClick={() => quickMastery(k, 10)}>+</button>
                           </div>
                         </td>
-                        <td style={{ color: 'var(--text-light)', maxWidth: 200 }}>{k.note || '-'}</td>
-                        <td>
+                        <td data-label="备注" style={{ color: 'var(--text-light)', maxWidth: 200 }}>{k.note || '-'}</td>
+                        <td data-label="操作" className="td-actions">
                           <button className="btn-ghost btn-sm" onClick={() => openEdit(k)}>编辑</button>
                           <button className="btn-ghost btn-sm" style={{ marginLeft: 6, color: 'var(--danger)' }} onClick={() => remove(k)}>删除</button>
                         </td>

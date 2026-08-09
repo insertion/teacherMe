@@ -4,7 +4,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const dbFile = path.join(__dirname, '..', 'data.sqlite')
+const dbFile = process.env.DB_PATH || path.join(__dirname, '..', 'data.sqlite')
 
 const SQL = await initSqlJs()
 
@@ -172,3 +172,5 @@ function addColumnIfMissing(table, column, def) {
 }
 addColumnIfMissing('students', 'address', 'TEXT')
 addColumnIfMissing('students', 'commute_min', 'INTEGER DEFAULT 0')
+addColumnIfMissing('students', 'regular_slots', 'TEXT')
+addColumnIfMissing('sessions', 'confirmed', 'INTEGER DEFAULT 1')

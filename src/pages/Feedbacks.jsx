@@ -106,9 +106,9 @@ export default function Feedbacks({ onToast }) {
               <tbody>
                 {list.map((f) => (
                   <tr key={f.id}>
-                    <td>{f.date}</td>
-                    <td style={{ whiteSpace: 'pre-wrap' }}>{f.content}</td>
-                    <td>
+                    <td data-label="日期">{f.date}</td>
+                    <td data-label="反馈内容" style={{ whiteSpace: 'pre-wrap' }}>{f.content}</td>
+                    <td data-label="操作" className="td-actions">
                       <button className="btn-ghost btn-sm" onClick={() => copy(f.content)}>复制</button>
                       <button className="btn-ghost btn-sm" style={{ marginLeft: 6 }} onClick={() => openEdit(f)}>编辑</button>
                       <button className="btn-ghost btn-sm" style={{ marginLeft: 6, color: 'var(--danger)' }} onClick={() => remove(f)}>删除</button>

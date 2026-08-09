@@ -8,9 +8,15 @@
     "start": "npm run build && node server/index.js",
     "web": "vite",
     "build": "vite build",
+    "build:mobile": "vite build --mode mobile",
+    "cap:sync": "npm run build:mobile && npx cap sync android",
+    "apk": "npm run build:mobile && npx cap sync android && cd android && ./gradlew assembleDebug",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "marked": "^18.0.9",

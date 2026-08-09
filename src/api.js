@@ -1,12 +1,23 @@
-const BASE = '/api'
+const BASE = (import.meta.env.VITE_API_BASE || '') + '/api'
 
 async function request(path, options = {}) {
   const body = options.body ? JSON.stringify(options.body) : undefined
-  const res = await fetch(BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-    body,
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15000)
+  let res
+  try {
+    res = await fetch(BASE + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+      body,
+      signal: controller.signal,
+    })
+  } catch (e) {
+    clearTimeout(timer)
+    if (e.name === 'AbortError') throw new Error('请求超时,请检查网络或后端服务是否在线')
+    throw new Error('无法连接服务器(' + (import.meta.env.VITE_API_BASE || '本地') + '),请确认与后端在同一网络')
+  }
+  clearTimeout(timer)
   if (!res.ok) {
     const msg = await res.text()
     throw new Error(msg || res.statusText)
@@ -27,6 +38,8 @@ export const api = {
     list: (params) => request('/sessions' + (params ? '?' + new URLSearchParams(params) : '')),
     create: (data) => request('/sessions', { method: 'POST', body: data }),
     update: (id, data) => request(`/sessions/${id}`, { method: 'PUT', body: data }),
+    confirm: (id, confirmed) => request(`/sessions/${id}/confirm`, { method: 'PUT', body: { confirmed } }),
+    leave: (data) => request('/sessions/leave', { method: 'POST', body: data }),
     remove: (id) => request(`/sessions/${id}`, { method: 'DELETE' }),
     summary: (params) => request('/sessions/stats/summary' + (params ? '?' + new URLSearchParams(params) : '')),
   },
@@ -52,6 +65,7 @@ export const api = {
     week: (date) => request('/schedule/week' + (date ? '?date=' + date : '')),
     day: (date) => request('/schedule/day' + (date ? '?date=' + date : '')),
     month: (date) => request('/schedule/month' + (date ? '?date=' + date : '')),
+    autoGenerate: (data) => request('/schedule/auto-generate', { method: 'POST', body: data }),
   },
   ai: {
     getConfig: () => request('/ai/config'),
@@ -71,4 +85,5 @@ export const api = {
     grade: (idx) => request(`/english-kb/grade/${idx}`),
     import: (data) => request('/english-kb/import', { method: 'POST', body: data }),
   },
+  health: () => request('/health'),
 }

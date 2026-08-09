@@ -1,0 +1,11 @@
+node_modules
+android
+dist
+data.sqlite
+*.apk
+.git
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store

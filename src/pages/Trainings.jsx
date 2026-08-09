@@ -109,14 +109,14 @@ export default function Trainings({ onToast }) {
                 <tbody>
                   {list.map((t) => (
                     <tr key={t.id}>
-                      <td>{t.point}</td>
-                      <td style={{ whiteSpace: 'pre-wrap' }}>{t.suggestion}</td>
-                      <td>
+                      <td data-label="知识点">{t.point}</td>
+                      <td data-label="训练建议" style={{ whiteSpace: 'pre-wrap' }}>{t.suggestion}</td>
+                      <td data-label="状态">
                         <span className={`badge ${t.done ? 'badge-done' : 'badge-pending'}`}>
                           {t.done ? '已完成' : '待完成'}
                         </span>
                       </td>
-                      <td>
+                      <td data-label="操作" className="td-actions">
                         <button className="btn-ghost btn-sm" onClick={() => toggleDone(t)}>
                           {t.done ? '标记待完成' : '标记完成'}
                         </button>
